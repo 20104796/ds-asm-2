@@ -2,21 +2,23 @@
 import { SQSHandler } from "aws-lambda";
 import {
     GetObjectCommand,
+    PutObjectCommandInput,
     GetObjectCommandInput,
     S3Client,
+    PutObjectCommand,
 } from "@aws-sdk/client-s3";
 
 const s3 = new S3Client();
 
 export const handler: SQSHandler = async (event) => {
     console.log("Event ", JSON.stringify(event));
-    //外部 for 循环迭代从 SQS 接收的一批消息
     for (const record of event.Records) {
-        const recordBody = JSON.parse(record.body);
-        if (recordBody.Records) {
-            console.log("Record body ", JSON.stringify(recordBody));
-            //内部循环处理单个 SQS 消息中多个文件上传事件的可能性
-            for (const messageRecord of recordBody.Records) {
+        const recordBody = JSON.parse(record.body);  // Parse SQS message
+        const snsMessage = JSON.parse(recordBody.Message); // Parse SNS message
+
+        if (snsMessage.Records) {
+            console.log("Record body ", JSON.stringify(snsMessage));
+            for (const messageRecord of snsMessage.Records) {
                 const s3e = messageRecord.s3;
                 const srcBucket = s3e.bucket.name;
                 // Object key may have spaces or unicode non-ASCII characters.
