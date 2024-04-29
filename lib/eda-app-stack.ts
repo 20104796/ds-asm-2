@@ -158,7 +158,7 @@ export class EDAAppStack extends cdk.Stack {
 
 
         //2 Lambda
-        /**
+
         const updateTableFn = new lambdanode.NodejsFunction(
             this,
             "updateTableFn",
@@ -178,7 +178,6 @@ export class EDAAppStack extends cdk.Stack {
         }))
 
         imagesTable.grantReadWriteData(updateTableFn);
-         */
 
 
         new cdk.CfnOutput(this, "bucketName", {
