@@ -10,9 +10,9 @@ import * as subs from "aws-cdk-lib/aws-sns-subscriptions";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Duration } from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
-
 import { Construct } from "constructs";
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import {  DynamoEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+import { StartingPosition } from "aws-cdk-lib/aws-lambda";
 
 export class EDAAppStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -45,7 +45,17 @@ export class EDAAppStack extends cdk.Stack {
                 memorySize: 128,
             }
         );
-        topic1.addSubscription(new subs.LambdaSubscription(confirmationMailerFn));
+
+        topic1.addSubscription(new subs.LambdaSubscription(confirmationMailerFn, {
+            filterPolicyWithMessageBody: {
+                Records: sns.FilterOrPolicy.policy({
+                    eventName: sns.FilterOrPolicy.filter(sns.SubscriptionFilter.stringFilter({
+                        matchPrefixes: ['ObjectCreated']
+                    }))
+                })
+            }
+        }));
+
 
         confirmationMailerFn.addToRolePolicy(
             new iam.PolicyStatement({
@@ -60,7 +70,7 @@ export class EDAAppStack extends cdk.Stack {
         );
 
         const DLQ = new sqs.Queue(this, "bad-orders-q", {
-            retentionPeriod: Duration.minutes(30),
+            retentionPeriod: Duration.minutes(10),
         });
 
         const rejectionMailerFn = new lambdanode.NodejsFunction(
@@ -100,7 +110,16 @@ export class EDAAppStack extends cdk.Stack {
             },
         });
 
-        topic1.addSubscription(new subs.SqsSubscription(Queue));
+        topic1.addSubscription(new subs.SqsSubscription(Queue, {
+                filterPolicyWithMessageBody: {
+                    Records: sns.FilterOrPolicy.policy({
+                        eventName: sns.FilterOrPolicy.filter(sns.SubscriptionFilter.stringFilter({
+                            matchPrefixes: ['ObjectCreated']
+                        }))
+                    })
+                }
+            })
+        );
 
 
         const processImageFn = new lambdanode.NodejsFunction(
@@ -135,12 +154,9 @@ export class EDAAppStack extends cdk.Stack {
 
 
 
-        const topic2 = new sns.Topic(this, "topic2", {
-            displayName: "topic 2",
-        });
         imagesBucket.addEventNotification(
             s3.EventType.OBJECT_REMOVED,
-            new s3n.SnsDestination(topic2)
+            new s3n.SnsDestination(topic1)
         );
 
         const processDeleteFn = new lambdanode.NodejsFunction(
@@ -153,12 +169,19 @@ export class EDAAppStack extends cdk.Stack {
                 memorySize: 128,
             }
         );
-        topic2.addSubscription(new subs.LambdaSubscription(processDeleteFn))
+        topic1.addSubscription(new subs.LambdaSubscription(processDeleteFn,{
+            filterPolicyWithMessageBody: {
+                Records: sns.FilterOrPolicy.policy({
+                    eventName: sns.FilterOrPolicy.filter(sns.SubscriptionFilter.stringFilter({
+                        matchPrefixes: ['ObjectRemoved']
+                    }))
+                })
+            }
+        }))
         imagesTable.grantReadWriteData(processDeleteFn)
 
 
         //2 Lambda
-
         const updateTableFn = new lambdanode.NodejsFunction(
             this,
             "updateTableFn",
@@ -169,7 +192,7 @@ export class EDAAppStack extends cdk.Stack {
                 memorySize: 128,
             }
         );
-        topic2.addSubscription(new subs.LambdaSubscription(updateTableFn, {
+        topic1.addSubscription(new subs.LambdaSubscription(updateTableFn, {
             filterPolicy: {
                 comment_type: sns.SubscriptionFilter.stringFilter({
                     allowlist: ['UpdateTable']
@@ -187,9 +210,7 @@ export class EDAAppStack extends cdk.Stack {
             value: topic1.topicArn,
         });
 
-        new cdk.CfnOutput(this, "topic2ARN", {
-            value: topic2.topicArn,
-        });
+
 
     }
 }
