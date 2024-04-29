@@ -131,12 +131,13 @@ export class EDAAppStack extends cdk.Stack {
 
     imagesTable.grantReadWriteData(processImageFn);
 
-    new cdk.CfnOutput(this, "bucketName", {
-        value: imagesBucket.bucketName,
-    });
-    new cdk.CfnOutput(this, "topic1ARN", {
-        value: topic1.topicArn,
-    });
+
+      new cdk.CfnOutput(this, "bucketName", {
+          value: imagesBucket.bucketName,
+      });
+      new cdk.CfnOutput(this, "topic1ARN", {
+          value: topic1.topicArn,
+      });
 
   }
 }
